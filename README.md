@@ -1,6 +1,6 @@
-# Real Exchange Rate App
+# Parity Lens
 
-A Streamlit app that computes the bilateral real exchange rate (RER) between any two IMF economies, or the Euro area, using monthly IMF CPI and exchange-rate data from January 1976 onward.
+How strong is a currency in real terms? Parity Lens is a Streamlit app that computes the bilateral real exchange rate (RER) between any two IMF economies, or the Euro area, using monthly IMF CPI and exchange-rate data from January 1976 onward.
 
 ## Economics
 
@@ -24,11 +24,17 @@ A rising Real Index means Country 1's currency is appreciating in real terms: Co
 
 ## Features
 
-- Pick Country 1 and Country 2 from 200 economies with both IMF CPI and exchange-rate series, including the Euro area (IMF code G163)
-- Choose the start and end months of the sample
-- Chart the Real Index, nominal S, or both (separate axes)
-- Download a CSV with every month in the sample: both CPIs, both USD rates, S, RER, RER* and the Real Index
-- Notes on missing months and on large one-month moves in S (devaluations, redenominations or data breaks)
+- **Currency pair:** pick a home country and a comparison country from 200 economies with both IMF CPI and exchange-rate series, including the Euro area (IMF code G163). A swap button flips the pair.
+- **Sample period:** type or pick the start and end months, or drag the slider (they stay in sync). A button resets to the full history.
+- **Headline:** how over- or undervalued the home currency is right now (latest Real Index minus 100), alongside the latest Real Index, nominal rate, RER* and the number of months in the sample.
+- **Chart:** the Real Index, nominal S, or both (separate axes), with the latest value labeled at the end of each line.
+- **Display:** dark or light mode, and four line-color palettes.
+- **CSV download:** every month in the sample, at full precision: both CPIs, both USD rates, S, RER, RER* and the Real Index.
+- **About the numbers** (bottom of the page), in four tabs:
+  - Method: the equations
+  - How to read it: interpretation and caveats
+  - Data notes: missing months, and one-month moves in S above 50%
+  - Data & sources: data table and the exact IMF series used
 
 ## Data
 

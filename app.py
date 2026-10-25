@@ -1,6 +1,6 @@
 """
-Real Exchange Rate (RER) app
-----------------------------
+Parity Lens: a real exchange rate (RER) app
+-------------------------------------------
 Pulls monthly CPI and exchange-rate data from the IMF SDMX 3.0 API and computes
 the bilateral real exchange rate between any two IMF economies (or the Euro area).
 
@@ -422,36 +422,163 @@ def apply_sample(df: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp) -> tu
 
 
 # --------------------------------------------------------------------------
+# Look and feel
+# --------------------------------------------------------------------------
+THEMES = {
+    "light": dict(bg="#FFFFFF", side="#F5F3F9", text="#1F1F24", muted="#5F5F6B",
+                  border="#D6D3DE", field="#FFFFFF", hover="#ECE8F4", grid="#E7E4EE",
+                  plotly="plotly_white"),
+    "dark": dict(bg="#0E1117", side="#171B26", text="#F1F1F4", muted="#A4A6B3",
+                 border="#353A4A", field="#1E2331", hover="#2A3044", grid="#262B38",
+                 plotly="plotly_dark"),
+}
+
+# (real line, nominal line), with a brighter variant for dark mode
+PALETTES = {
+    "Purple & Orange": {"light": ("#4E2A84", "#D9821F"), "dark": ("#B79CEB", "#F5A94A")},
+    "Blue & Red": {"light": ("#1F5FA8", "#C0392B"), "dark": ("#71A9F7", "#F2766B")},
+    "Green & Gray": {"light": ("#1E7D5A", "#6F7480"), "dark": ("#4FD1A1", "#C3C6CF")},
+    "Teal & Gold": {"light": ("#0F7C8C", "#B07D0B"), "dark": ("#3CC9D6", "#E9C54B")},
+}
+
+
+def inject_theme_css(tm: dict, accent: str) -> None:
+    """Restyle the page. Streamlit has no API to switch its theme at runtime, so this uses CSS."""
+    st.markdown(
+        f"""
+<style>
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"],
+[data-testid="stMain"] {{ background-color: {tm['bg']} !important; color: {tm['text']} !important; }}
+[data-testid="stSidebar"], [data-testid="stSidebar"] > div {{ background-color: {tm['side']} !important; }}
+.stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp p, .stApp label, .stApp li,
+.stApp [data-testid="stMarkdownContainer"], .stApp [data-testid="stWidgetLabel"] *,
+[data-testid="stMetricValue"], [data-testid="stMetricValue"] *, [data-testid="stMetricLabel"] * {{
+    color: {tm['text']} !important; }}
+[data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] *,
+[data-testid="stSliderTickBarMin"], [data-testid="stSliderTickBarMax"] {{ color: {tm['muted']} !important; }}
+[data-testid="stSelectbox"] [role="group"], [data-testid="stSelectbox"] [role="group"] button,
+div[data-baseweb="select"] > div, div[data-baseweb="input"] > div, .stApp input {{
+    background-color: {tm['field']} !important; color: {tm['text']} !important;
+    border-color: {tm['border']} !important; }}
+[data-testid="stSelectbox"] [role="group"] svg, div[data-baseweb="select"] svg {{ color: {tm['muted']} !important; fill: {tm['muted']} !important; }}
+[data-testid="stTooltipIcon"] svg {{ color: {tm['muted']} !important; }}
+[data-testid="stSelectboxVirtualDropdown"], div[data-baseweb="popover"] ul, div[data-baseweb="popover"] li {{
+    background-color: {tm['field']} !important; color: {tm['text']} !important; border-color: {tm['border']} !important; }}
+[data-testid="stSelectboxVirtualDropdown"] [role="option"] {{ color: {tm['text']} !important; }}
+[data-testid="stSelectboxVirtualDropdown"] [role="option"]:hover,
+[data-testid="stSelectboxVirtualDropdown"] [role="option"][data-focused],
+[data-testid="stSelectboxVirtualDropdown"] [role="option"][aria-selected="true"],
+div[data-baseweb="popover"] li:hover {{ background-color: {tm['hover']} !important; }}
+[data-testid="stExpander"] details {{ background-color: {tm['bg']} !important; border-color: {tm['border']} !important; }}
+[data-testid="stExpander"] summary, [data-testid="stExpander"] summary * {{ color: {tm['text']} !important; }}
+.stDownloadButton button {{ background-color: {tm['field']} !important; color: {tm['text']} !important;
+    border-color: {tm['border']} !important; }}
+[data-testid="stAlert"] * {{ color: {tm['text']} !important; }}
+.stApp [data-testid^="stBaseButton"] {{ background-color: {tm['field']} !important; color: {tm['text']} !important;
+    border-color: {tm['border']} !important; }}
+.stApp [data-testid^="stBaseButton"] * {{ color: inherit !important; }}
+.stApp [data-testid^="stBaseButton"]:disabled {{ opacity: 0.45; }}
+.stApp [data-testid="stButtonGroup"] button {{ background-color: {tm['field']} !important; color: {tm['text']} !important;
+    border-color: {tm['border']} !important; }}
+.stApp [data-testid="stButtonGroup"] button * {{ color: inherit !important; }}
+.stApp [data-testid="stButtonGroup"] button[aria-checked="true"], .stApp [data-testid="stButtonGroup"] button[aria-pressed="true"] {{
+    background-color: {tm['hover']} !important; color: {accent} !important; border-color: {accent} !important;
+    font-weight: 600; }}
+.stApp [role="tab"] p {{ color: {tm['muted']} !important; }}
+.stApp [role="tab"][aria-selected="true"] p {{ color: {tm['text']} !important; font-weight: 600; }}
+.stApp hr {{ border-color: {tm['border']} !important; }}
+.stApp .katex {{ color: {tm['text']} !important; font-size: 1.1em; }}
+.block-container {{ padding-top: 2.2rem; }}
+.stApp h1 {{ letter-spacing: -0.02em; margin-bottom: 0 !important; }}
+.stApp .hero {{ border-left: 5px solid {accent}; background: {tm['side']}; border-radius: 10px;
+    padding: 1.1rem 1.4rem; height: 100%; }}
+.stApp .hero .kicker {{ color: {tm['muted']} !important; font-size: 0.85rem; text-transform: uppercase;
+    letter-spacing: 0.06em; margin: 0 0 0.35rem 0; }}
+.stApp .hero .headline {{ color: {tm['text']} !important; font-size: 1.9rem; font-weight: 700; line-height: 1.2;
+    margin: 0 0 0.5rem 0; }}
+.stApp .hero .headline span {{ color: {accent} !important; }}
+.stApp .hero .sub {{ color: {tm['muted']} !important; font-size: 0.95rem; margin: 0; }}
+.stApp .footer {{ color: {tm['muted']} !important; font-size: 0.8rem; text-align: center; margin-top: 2rem; }}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def decimals_for(ref: float) -> int:
+    """#,##0.0 by default; more decimals only when the number is small enough to need them."""
+    if not np.isfinite(ref) or ref <= 0 or ref >= 10:
+        return 1
+    if ref >= 1:
+        return 2
+    return min(8, int(-np.floor(np.log10(ref))) + 2)
+
+
+def fmt(x: float, decimals: int = 1) -> str:
+    return f"{x:,.{decimals}f}"
+
+
+# --------------------------------------------------------------------------
 # Charts
 # --------------------------------------------------------------------------
-def make_chart(window: pd.DataFrame, view: str, s_label: str, title: str) -> go.Figure:
-    real = go.Scatter(x=window.index, y=window["Real_Index"], name="Real Index (avg = 100)",
-                      mode="lines", line=dict(color="#4E2A84", width=2), connectgaps=False)
-    nominal = go.Scatter(x=window.index, y=window["S"], name=f"Nominal S ({s_label})",
-                         mode="lines", line=dict(color="#D98C1F", width=2), connectgaps=False)
+def make_chart(window: pd.DataFrame, view: str, cur1: str, cur2: str, colors: tuple,
+               tm: dict, title: str, subtitle: str, s_dec: int) -> go.Figure:
+    both = view == "Both"
+    fig = make_subplots(specs=[[{"secondary_y": both}]])
+    real_color, nom_color = colors
 
-    if view == "Both":
-        fig = make_subplots(specs=[[{"secondary_y": True}]])
-        fig.add_trace(real, secondary_y=False)
-        fig.add_trace(nominal, secondary_y=True)
-        fig.update_yaxes(title_text="Real Index (sample avg = 100)", secondary_y=False)
-        fig.update_yaxes(title_text=f"S: {s_label}", secondary_y=True, showgrid=False)
-    elif view == "Real":
-        fig = go.Figure(real)
-        fig.update_yaxes(title_text="Real Index (sample avg = 100)")
-    else:
-        fig = go.Figure(nominal)
-        fig.update_yaxes(title_text=f"S: {s_label}")
+    lines = []
+    if view in ("Real", "Both"):
+        lines.append(("Real_Index", "Real Index (sample avg = 100)", real_color, 1, False))
+    if view in ("Nominal", "Both"):
+        lines.append(("S", f"Nominal: {cur2} per {cur1}", nom_color, s_dec, both))
+
+    for col, name, color, dec, secondary in lines:
+        s = window[col]
+        kw = {"secondary_y": secondary} if both else {}
+        fig.add_trace(go.Scatter(
+            x=s.index, y=s, name=name, mode="lines", connectgaps=False,
+            line=dict(color=color, width=2.2),
+            hovertemplate=f"{name}: %{{y:,.{dec}f}}<extra></extra>",
+        ), **kw)
+        last = s.last_valid_index()
+        if last is not None:  # label the latest point in the line's colour
+            fig.add_trace(go.Scatter(
+                x=[last], y=[s[last]], mode="markers+text", showlegend=False, hoverinfo="skip",
+                marker=dict(color=color, size=8), cliponaxis=False,
+                text=[f" {fmt(s[last], dec)}"], textposition="middle right",
+                textfont=dict(color=color, size=13),
+            ), **kw)
 
     if view in ("Real", "Both"):
-        fig.add_hline(y=100, line_dash="dot", line_color="gray", opacity=0.6)
+        fig.add_hline(y=100, line_dash="dot", line_color=tm["muted"], opacity=0.7)
+
+    # Leave room on the right for the end-of-line labels
+    span = window.index.max() - window.index.min()
+    pad = max(span * 0.06, pd.Timedelta(days=62))
+    fig.update_xaxes(range=[window.index.min(), window.index.max() + pad], hoverformat="%b %Y",
+                     gridcolor=tm["grid"], title_text=None)
+
+    if both:
+        fig.update_yaxes(title_text="Real Index (sample avg = 100)", tickformat=",.1f",
+                         secondary_y=False, gridcolor=tm["grid"])
+        fig.update_yaxes(title_text=f"{cur2} per {cur1}", tickformat=f",.{s_dec}f", tickmode="auto",
+                         nticks=8, secondary_y=True, showgrid=False)
+    elif view == "Real":
+        fig.update_yaxes(title_text="Real Index (sample avg = 100)", tickformat=",.1f", gridcolor=tm["grid"])
+    else:
+        fig.update_yaxes(title_text=f"{cur2} per {cur1}", tickformat=f",.{s_dec}f", gridcolor=tm["grid"])
 
     fig.update_layout(
-        title=title, hovermode="x unified", height=520,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-        margin=dict(l=10, r=10, t=80, b=10),
+        template=tm["plotly"], paper_bgcolor=tm["bg"], plot_bgcolor=tm["bg"],
+        font=dict(color=tm["text"]),
+        title=dict(text=f"<b>{title}</b>", x=0.01, xanchor="left",
+                   subtitle=dict(text=subtitle, font=dict(color=tm["muted"], size=13))),
+        hovermode="x unified", height=540,
+        hoverlabel=dict(bgcolor=tm["field"], font_color=tm["text"], bordercolor=tm["border"]),
+        legend=dict(orientation="h", yanchor="top", y=-0.08, xanchor="left", x=0),
+        margin=dict(l=10, r=10, t=95, b=40),
     )
-    fig.update_xaxes(title_text="Month")
     return fig
 
 
@@ -463,24 +590,67 @@ def label(iso: str) -> str:
     return f"{name} ({iso}, {cur})"
 
 
+def clamp_sample(months: list) -> tuple:
+    """Return the stored sample, clamped to the months available for the current country pair."""
+    lo, hi = months[0], months[-1]
+    s = min(max(st.session_state.get("start", lo), lo), hi)
+    e = min(max(st.session_state.get("end", hi), lo), hi)
+    if s > e:
+        s, e = lo, hi
+    if (s, e) != (st.session_state.get("start"), st.session_state.get("end")):
+        st.session_state.start, st.session_state.end = s, e
+        st.session_state.date_v = st.session_state.get("date_v", 0) + 1  # rebuild widgets
+    return s, e
+
+
+APP_NAME = "Parity Lens"
+TAGLINE = "How strong is a currency in real terms? Real exchange rates for 200 economies, built from IMF data."
+
+
+def swap_countries() -> None:
+    st.session_state.c1, st.session_state.c2 = st.session_state.c2, st.session_state.c1
+
+
 def main() -> None:
-    st.set_page_config(page_title="Real Exchange Rate App", page_icon="💱", layout="wide")
-    st.title("Real Exchange Rate App")
-    st.caption("Monthly IMF CPI and exchange-rate data · RER(t) = S(t) × P1(t) / P2(t)")
+    st.set_page_config(page_title=APP_NAME, page_icon="🔭", layout="wide")
 
     codes = list(COUNTRIES)
-    with st.sidebar:
-        st.header("Countries")
-        c1 = st.selectbox("Country 1 (home)", codes, index=codes.index("GBR"), format_func=label)
-        c2 = st.selectbox("Country 2 (foreign)", codes, index=codes.index("USA"), format_func=label)
+    st.session_state.setdefault("dark", getattr(st.context.theme, "type", None) == "dark")
+    st.session_state.setdefault("c1", "GBR")
+    st.session_state.setdefault("c2", "USA")
+
+    # ---- Header: name, tagline, dark-mode switch --------------------------
+    head_l, head_r = st.columns([6, 1], vertical_alignment="center")
+    with head_r:
+        st.toggle("🌙 Dark", key="dark")
+    mode = "dark" if st.session_state.dark else "light"
+    tm = THEMES[mode]
+    with head_l:
+        st.title(f"🔭 {APP_NAME}")
+        st.caption(TAGLINE)
+
+    # ---- Sidebar: pair, then sample period, then display ------------------
+    # Containers fix the visual order; the period box is filled once the data is known.
+    sb_pair, sb_period, sb_display = st.sidebar.container(), st.sidebar.container(), st.sidebar.container()
+    with sb_pair:
+        st.subheader("Currency pair")
+        c1 = st.selectbox("Home country", codes, key="c1", format_func=label)
+        st.button("⇅  Swap countries", on_click=swap_countries, width="stretch")
+        c2 = st.selectbox("Compare against", codes, key="c2", format_func=label)
+    with sb_display:
+        st.subheader("Display")
+        view = st.segmented_control("Show", ["Real", "Nominal", "Both"], default="Both", key="view") or "Both"
+        palette = st.selectbox("Line colors", list(PALETTES), key="palette")
+
+    colors = PALETTES[palette][mode]
+    inject_theme_css(tm, colors[0])
 
     if c1 == c2:
-        st.warning("Choose two different economies.")
+        st.warning("Pick two different economies in the sidebar.")
         st.stop()
 
     name1, cur1 = COUNTRIES[c1]
     name2, cur2 = COUNTRIES[c2]
-    s_label = f"{cur2} per {cur1}"
 
     try:
         with st.spinner("Downloading IMF data…"):
@@ -493,21 +663,38 @@ def main() -> None:
     if valid.empty:
         st.error(
             f"No overlapping monthly CPI and exchange-rate data for {name1} and {name2}. "
-            "The IMF may not publish one of these series."
+            "The IMF may not publish one of these series. Try another pair."
         )
         if keys:
-            st.write({k: f"{v}: {panel[k].notna().sum()} months" for k, v in keys.items()})
+            st.caption(" · ".join(f"{k}: {panel[k].notna().sum()} months" for k in keys))
         st.stop()
 
+    # ---- Sample period: month boxes and slider kept in sync ---------------
     months = list(pd.date_range(valid.index.min(), valid.index.max(), freq="MS"))
-    with st.sidebar:
-        st.header("Sample period")
-        start, end = st.select_slider(
-            "Start and end month", options=months, value=(months[0], months[-1]),
-            format_func=lambda d: d.strftime("%b %Y"),
-        )
-        st.header("Chart")
-        view = st.radio("Show", ["Real", "Nominal", "Both"], index=2, horizontal=True)
+    start, end = clamp_sample(months)
+    v = st.session_state.get("date_v", 0)
+    month_fmt = lambda d: d.strftime("%b %Y")  # noqa: E731
+    with sb_period:
+        st.subheader("Sample period")
+        col_a, col_b = st.columns(2)
+        box_start = col_a.selectbox("Start", months, index=months.index(start), key=f"start_box_{v}",
+                                    format_func=month_fmt, help="Click and type to search, e.g. 'Mar 2005'")
+        box_end = col_b.selectbox("End", months, index=months.index(end), key=f"end_box_{v}",
+                                  format_func=month_fmt)
+        slider = st.select_slider("Drag to adjust", options=months, value=(start, end),
+                                  key=f"range_slider_{v}", format_func=month_fmt, label_visibility="collapsed")
+        if st.button("Reset to full history", width="stretch", disabled=(start, end) == (months[0], months[-1])):
+            slider = (months[0], months[-1])
+            box_start, box_end = start, end
+    new = None
+    if (box_start, box_end) != (start, end):
+        new = tuple(sorted((box_start, box_end)))
+    elif tuple(slider) != (start, end):
+        new = tuple(slider)
+    if new is not None:
+        st.session_state.start, st.session_state.end = new
+        st.session_state.date_v = v + 1
+        st.rerun()
 
     window, rer_star = apply_sample(panel, start, end)
     n_valid = int(window["RER"].notna().sum())
@@ -515,36 +702,66 @@ def main() -> None:
         st.warning("No valid months in the selected sample. Widen the date range.")
         st.stop()
 
-    # Headline metrics
     last = window["RER"].last_valid_index()
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("RER* (sample average RER)", f"{rer_star:,.4g}")
-    m2.metric(f"Latest S ({s_label})", f"{window.loc[last, 'S']:,.4g}", help=last.strftime("%b %Y"))
-    m3.metric("Latest Real Index", f"{window.loc[last, 'Real_Index']:,.1f}", help=last.strftime("%b %Y"))
-    m4.metric("Valid months", f"{n_valid} of {len(window)}")
+    s_dec = decimals_for(window["S"].abs().median())
+    rer_dec = decimals_for(abs(rer_star))
+    idx_last = window.loc[last, "Real_Index"]
+    gap = idx_last - 100
+    period = f"{start:%b %Y} to {end:%b %Y}"
 
-    title = f"{name1} vs {name2}: {start:%b %Y} – {end:%b %Y}"
-    st.plotly_chart(make_chart(window, view, s_label, title), width="stretch")
-    st.caption(
-        f"Real Index above 100: {cur1} is stronger in real terms than its sample average "
-        f"({name1} goods relatively more expensive than {name2} goods)."
-    )
-
-    # Data-quality notes
+    # ---- Data notes (shown at the bottom; flagged under the chart) --------
+    notes = []
     missing = len(window) - n_valid
     if missing:
-        st.info(f"{missing} month(s) in the sample lack CPI or FX data and are excluded from RER*.")
+        notes.append(f"**{missing} month(s)** in the sample lack CPI or exchange-rate data. "
+                     "They are left as gaps in the chart and excluded from RER*.")
     jumps = window["S"].pct_change(fill_method=None).abs()
     big = jumps[jumps > JUMP_THRESHOLD]
     if not big.empty:
         dates = ", ".join(d.strftime("%b %Y") for d in big.index[:6])
-        st.info(
-            f"S moves more than {JUMP_THRESHOLD:.0%} in a single month at: {dates}"
+        notes.append(
+            f"**S moves more than {JUMP_THRESHOLD:.0%} in a single month** at {dates}"
             f"{' …' if len(big) > 6 else ''}. This can reflect a devaluation, a currency "
-            "redenomination or a data break — worth checking before interpreting the series."
+            "redenomination or a data break, so check before reading too much into it."
         )
+    if last < end:
+        notes.append(f"The latest complete month in this sample is **{last:%b %Y}**; "
+                     "later months are missing at least one input.")
 
-    # CSV export
+    # ---- Headline result --------------------------------------------------
+    if abs(gap) < 0.05:
+        headline = f"{cur1} is <span>at its average</span> real value vs {cur2}"
+    else:
+        word = "overvalued" if gap > 0 else "undervalued"
+        headline = f"{cur1} is <span>{fmt(abs(gap))}% {word}</span> vs {cur2}"
+
+    hero_col, metrics_col = st.columns([3, 2], gap="medium")
+    with hero_col:
+        st.markdown(
+            f'<div class="hero"><p class="kicker">{name1} vs {name2} · {last:%b %Y}</p>'
+            f'<p class="headline">{headline}</p>'
+            f'<p class="sub">In real terms, compared with its average over {period}. '
+            f'A Real Index above 100 means {name1} is relatively expensive.</p></div>',
+            unsafe_allow_html=True,
+        )
+    with metrics_col:
+        r1a, r1b = st.columns(2)
+        r2a, r2b = st.columns(2)
+        r1a.metric("Real Index", fmt(idx_last), help=f"{last:%b %Y}. Sample average = 100.")
+        r1b.metric(f"{cur2} per {cur1}", fmt(window.loc[last, "S"], s_dec), help=f"Nominal rate, {last:%b %Y}")
+        r2a.metric("RER* (sample avg)", fmt(rer_star, rer_dec), help="Average RER over valid months in the sample")
+        r2b.metric("Months of data", f"{n_valid:,}", help=f"{n_valid} of {len(window)} months have complete data")
+
+    # ---- Chart ------------------------------------------------------------
+    titles = {
+        "Real": f"Real value of {cur1} against {cur2}",
+        "Nominal": f"Value of 1 {cur1} in {cur2}",
+        "Both": f"Value of {cur1} in {cur2}: nominal and real",
+    }
+    subtitle = f"{name1} vs {name2} · {period} · monthly"
+    st.plotly_chart(make_chart(window, view, cur1, cur2, colors, tm, titles[view], subtitle, s_dec),
+                    width="stretch", theme=None)
+
     export = pd.DataFrame({
         "Month": window.index.strftime("%Y-%m"),
         f"P1_CPI_{c1}": window["P1"].values,
@@ -556,30 +773,73 @@ def main() -> None:
         "RER_star": window["RER_star"].values,
         "Real_Index": window["Real_Index"].values,
     })
-    st.download_button(
-        "Download CSV (selected sample)",
-        export.to_csv(index=False).encode("utf-8"),
-        file_name=f"rer_{c1}_{c2}_{start:%Y%m}_{end:%Y%m}.csv",
-        mime="text/csv",
+    dl_col, note_col = st.columns([1, 3], vertical_alignment="center")
+    dl_col.download_button(
+        "⬇  Download CSV", export.to_csv(index=False).encode("utf-8"),
+        file_name=f"rer_{c1}_{c2}_{start:%Y%m}_{end:%Y%m}.csv", mime="text/csv", width="stretch",
+    )
+    if notes:
+        note_col.caption(f"⚠️ {len(notes)} data note{'s' if len(notes) > 1 else ''} for this sample. "
+                         "See **Data notes** below.")
+
+    # ---- Bottom: method, interpretation, notes, data ----------------------
+    st.divider()
+    st.subheader("About the numbers")
+    tab_method, tab_read, tab_notes, tab_data = st.tabs(
+        ["📐 Method", "💡 How to read it", f"⚠️ Data notes ({len(notes)})", "🗂️ Data & sources"]
     )
 
-    with st.expander("Data table"):
-        st.dataframe(export, hide_index=True, width="stretch")
+    with tab_method:
+        m_l, m_r = st.columns(2, gap="large")
+        with m_l:
+            st.markdown(f"**1. Nominal rate**: {cur2} per 1 {cur1}, crossed through the US dollar")
+            st.latex(r"S_t = \frac{FX^{(2)}_t}{FX^{(1)}_t} \qquad FX = \text{local currency per USD}")
+            st.markdown(f"**2. Real exchange rate**: {name1} prices relative to {name2} prices in a common currency")
+            st.latex(r"RER_t = S_t \times \frac{P^{(1)}_t}{P^{(2)}_t}")
+        with m_r:
+            st.markdown(f"**3. Benchmark**: average RER over the {n_valid:,} valid months in the sample")
+            st.latex(r"RER^{*} = \frac{1}{N}\sum_{t=1}^{N} RER_t")
+            st.markdown("**4. Real Index and over/undervaluation**")
+            st.latex(r"\text{Index}_t = 100 \times \frac{RER_t}{RER^{*}} \qquad "
+                     r"\text{Over/under}_t = \text{Index}_t - 100")
+        st.caption(f"P = headline CPI (monthly index). FX = IMF period-average rate. "
+                   f"Country 1 = {name1}, Country 2 = {name2}. RER* is recalculated whenever the sample changes.")
 
-    with st.expander("Method and data sources"):
+    with tab_read:
         st.markdown(
             f"""
-- **S(t)** = {cur2} per 1 {cur1} = (FX2 per USD) / (FX1 per USD), using IMF period-average rates.
-- **RER(t)** = S(t) × P1(t) / P2(t), where P1 is {name1}'s CPI and P2 is {name2}'s CPI.
-- **RER\\*** = average of RER(t) over the {n_valid} valid months between {start:%b %Y} and {end:%b %Y}; recalculated whenever the sample changes.
-- **Real Index(t)** = 100 × RER(t) / RER\\*, so it averages exactly 100 over the sample.
-- Nominal S is shown in actual currency units (not normalized).
-
-IMF SDMX 3.0 series used (`{BASE_URL}`):
-- P1: `CPI/{keys['P1']}` · P2: `CPI/{keys['P2']}`
-- FX1: `ER/{keys['FX1']}` · FX2: `ER/{keys['FX2']}`
+- **Index above 100**: {cur1} is stronger in real terms than its sample average. {name1} goods and services are relatively expensive for {name2} buyers.
+- **Index below 100**: {cur1} is weaker in real terms. {name1} is relatively cheap.
+- **Real vs nominal**: when the two lines move together, inflation differences are small and the exchange rate drives the RER. When they drift apart, inflation differences matter.
+- **The benchmark is relative.** "Overvalued" means above the average for *this* sample (relative PPP), not above an absolute fair value. Changing the dates changes the benchmark and can flip the answer.
+- **CPI baskets differ across countries**, so the index tracks changes in relative prices, not price levels.
 """
         )
+
+    with tab_notes:
+        if notes:
+            for n in notes:
+                st.markdown(f"- {n}")
+        else:
+            st.markdown("No gaps or unusual jumps in this sample. ✅")
+
+    with tab_data:
+        st.dataframe(export, hide_index=True, width="stretch", height=280)
+        st.markdown(
+            f"""
+**Source:** IMF SDMX 3.0 API (`{BASE_URL}`), no API key required. Downloads are cached for six hours.
+
+| Input | IMF series |
+|---|---|
+| P1: {name1} CPI | `CPI/{keys['P1']}` |
+| P2: {name2} CPI | `CPI/{keys['P2']}` |
+| FX1: {cur1} per USD | `ER/{keys['FX1']}` |
+| FX2: {cur2} per USD | `ER/{keys['FX2']}` |
+"""
+        )
+
+    st.markdown(f'<p class="footer">{APP_NAME} · Data: International Monetary Fund · '
+                "For educational use, not investment advice</p>", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
