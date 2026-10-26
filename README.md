@@ -25,10 +25,11 @@ A rising Real Index means Country 1's currency is appreciating in real terms: Co
 ## Features
 
 - **Currency pair:** pick a home country and a comparison country from 200 economies with both IMF CPI and exchange-rate series, including the Euro area (IMF code G163). A swap button flips the pair.
-- **Sample period:** type or pick the start and end months, or drag the slider (they stay in sync). A button resets to the full history.
+- **Sample period:** pick the start and end months from small calendars (year arrows on top, a grid of months below), or drag the slider. The two stay in sync, and a button resets to the full history.
 - **Headline:** how over- or undervalued the home currency is right now (latest Real Index minus 100), alongside the latest Real Index, nominal rate, RER* and the number of months in the sample.
 - **Chart:** the Real Index, nominal S, or both (separate axes), with the latest value labeled at the end of each line.
 - **Display:** dark or light mode, and four line-color palettes.
+- **Wine pairing:** a short wine curiosity for each country in the pair (about 40 wine-producing economies). When both countries make wine, a line notes whose wine is cheaper than usual in real terms.
 - **CSV download:** every month in the sample, at full precision: both CPIs, both USD rates, S, RER, RER* and the Real Index.
 - **About the numbers** (bottom of the page), in four tabs:
   - Method: the equations

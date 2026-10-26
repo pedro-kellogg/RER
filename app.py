@@ -444,6 +444,7 @@ PALETTES = {
 
 def inject_theme_css(tm: dict, accent: str) -> None:
     """Restyle the page. Streamlit has no API to switch its theme at runtime, so this uses CSS."""
+    wine = "#C9708A" if tm["bg"] == THEMES["dark"]["bg"] else "#7B2D43"  # Bordeaux, brighter in dark mode
     st.markdown(
         f"""
 <style>
@@ -519,6 +520,15 @@ div[data-baseweb="popover"] li:hover {{ background-color: {tm['hover']} !importa
     margin: 0 0 0.5rem 0; }}
 .stApp .hero .headline span {{ color: {accent} !important; }}
 .stApp .hero .sub {{ color: {tm['muted']} !important; font-size: 0.95rem; margin: 0; }}
+.stApp .wine {{ border: 1px solid {tm['border']}; border-top: 4px solid {wine}; border-radius: 10px;
+    padding: 0.9rem 1.2rem; margin: 0.75rem 0 0.5rem 0; background: {tm['side']}; }}
+.stApp .wine .wine-title {{ font-weight: 700; font-size: 1rem; margin: 0 0 0.5rem 0; color: {wine} !important; }}
+.stApp .wine-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.6rem 1.4rem; }}
+.stApp .wine-item p {{ margin: 0; font-size: 0.92rem; line-height: 1.45; }}
+.stApp .wine-item .wine-country {{ font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;
+    color: {tm['muted']} !important; margin-bottom: 0.15rem; }}
+.stApp .wine .wine-twist {{ margin: 0.7rem 0 0 0; padding-top: 0.6rem; border-top: 1px dashed {tm['border']};
+    font-size: 0.9rem; font-style: italic; color: {tm['muted']} !important; }}
 .stApp .footer {{ color: {tm['muted']} !important; font-size: 0.8rem; text-align: center; margin-top: 2rem; }}
 </style>
 """,
@@ -601,6 +611,73 @@ def make_chart(window: pd.DataFrame, view: str, cur1: str, cur2: str, colors: tu
         margin=dict(l=10, r=10, t=95, b=40),
     )
     return fig
+
+
+# --------------------------------------------------------------------------
+# Wine pairing: one curiosity per wine-producing economy (short name, fact)
+# --------------------------------------------------------------------------
+WINE_FACTS = {
+    "ARG": ("Argentina", "Malbec, a minor grape in its native France, became Argentina's signature wine. Mendoza makes most of it, and April 17 is World Malbec Day."),
+    "ARM": ("Armenia", "The Areni-1 cave holds the world's oldest known winery, about 6,100 years old, complete with a grape press and fermentation jars."),
+    "AUS": ("Australia", "Phylloxera never reached the Barossa Valley, so it still has some of the world's oldest Shiraz vines, planted in the mid-1800s."),
+    "AUT": ("Austria", "After a 1985 scandal in which some producers sweetened wine with diethylene glycol, Austria passed some of the world's strictest wine laws and rebuilt its name on quality."),
+    "BOL": ("Bolivia", "Bolivia's vineyards around Tarija sit more than a mile above sea level, among the highest in the world."),
+    "BRA": ("Brazil", "Brazil's best-known wines are sparkling, made mostly in the hilly Serra Gaúcha region settled by Italian immigrants."),
+    "CAN": ("Canada", "Canada is the world's largest producer of icewine, made from grapes frozen on the vine. Ontario makes about 90% of it."),
+    "CHE": ("Switzerland", "The Swiss drink almost all of their own wine: only about 1% of production is exported."),
+    "CHL": ("Chile", "Carménère, thought extinct after phylloxera hit Bordeaux, was found in 1994 growing in Chilean vineyards, where it had been mistaken for Merlot."),
+    "CHN": ("China", "A Cabernet blend from Ningxia, Jia Bei Lan 2009, won an International Trophy at the 2011 Decanter World Wine Awards, putting the region on the map."),
+    "CYP": ("Cyprus", "Commandaria, a sweet wine named after a Crusader-era commandery, is often called the world's oldest named wine still in production."),
+    "CZE": ("Czech Republic", "Almost all Czech vineyards are in South Moravia, the country's warm south-east corner bordering Austria."),
+    "DEU": ("Germany", "The Calmont vineyards on the Mosel are among the steepest in the world, with slopes of over 65 degrees, picked entirely by hand."),
+    "DZA": ("Algeria", "Before independence in 1962, Algeria was the world's largest wine exporter, accounting for nearly two-thirds of all wine traded internationally."),
+    "ESP": ("Spain", "Spain has more land under vine than any other country, yet makes less wine than Italy or France because its dry vineyards yield little."),
+    "FRA": ("France", "When phylloxera destroyed much of France's vineyards in the late 1800s, they were saved by grafting French vines onto American rootstocks, which most still grow on today."),
+    "G163": ("the euro area", "Three euro members, France, Italy and Spain, usually make close to half of all the wine in the world."),
+    "GBR": ("the United Kingdom", "The chalk under southern England's vineyards is part of the same geological formation as Champagne's, and Champagne houses have planted vines in England."),
+    "GEO": ("Georgia", "Georgia has the oldest evidence of winemaking, from about 6000 BC. Its practice of fermenting wine in buried clay qvevri jars is on UNESCO's heritage list."),
+    "GRC": ("Greece", "Retsina's pine-resin flavor dates back to antiquity, when resin was used to seal wine amphorae against air."),
+    "HRV": ("Croatia", "DNA testing traced California's Zinfandel to an old Croatian grape, Crljenak Kaštelanski (Tribidrag), which is also Italy's Primitivo."),
+    "HUN": ("Hungary", "Hungary's national anthem mentions the vineyards of Tokaj, home of the sweet Tokaji Aszú once called 'the wine of kings, the king of wines'."),
+    "IND": ("India", "Nashik, in Maharashtra, calls itself the wine capital of India and grows most of the country's wine grapes."),
+    "ITA": ("Italy", "Italy grows hundreds of native grape varieties, more than any other country, from Piedmont's Nebbiolo to Tuscany's Sangiovese."),
+    "JPN": ("Japan", "Koshu, a pink-skinned grape grown in Yamanashi for centuries, is Japan's signature wine grape and pairs famously well with sushi."),
+    "LBN": ("Lebanon", "Château Musar kept making wine through Lebanon's 1975–1990 civil war, missing only the 1976 vintage."),
+    "LUX": ("Luxembourg", "Nearly all of Luxembourg's wine comes from a narrow strip along the Moselle River, best known for its sparkling Crémant de Luxembourg."),
+    "MDA": ("Moldova", "The Mileștii Mici cellars hold the Guinness record for the world's largest wine collection: nearly 2 million bottles in 200 km of underground galleries."),
+    "MEX": ("Mexico", "Casa Madero in Parras, Coahuila, founded in 1597, is the oldest winery in the Americas."),
+    "MKD": ("North Macedonia", "The Tikveš region produces most of the country's wine, and the dark Vranec grape is its signature red."),
+    "MNE": ("Montenegro", "Plantaže's Ćemovsko Polje vineyard, at over 2,300 hectares, is one of the largest single vineyards in Europe."),
+    "NZL": ("New Zealand", "Sauvignon Blanc from Marlborough made New Zealand famous and still makes up the large majority of its wine exports."),
+    "PER": ("Peru", "Peru and Chile have long disputed the origin of pisco, a grape brandy made since Spanish colonial times."),
+    "PRT": ("Portugal", "The Douro, home of port, was officially demarcated in 1756, making it one of the oldest regulated wine regions. Portugal also produces about half the world's cork."),
+    "ROU": ("Romania", "Romania is one of Europe's larger wine producers, with native grapes such as Fetească Neagră, the 'black maiden'."),
+    "SVK": ("Slovakia", "A small corner of the famous Tokaj wine region lies in Slovakia, which makes its own Tokajský wines."),
+    "SVN": ("Slovenia", "A vine in Maribor, over 400 years old, is listed by Guinness as the oldest vine in the world still bearing grapes."),
+    "URY": ("Uruguay", "Tannat, a tough red from south-west France, became Uruguay's national grape, brought by Basque immigrants in the 1870s."),
+    "USA": ("the United States", "At the 1976 'Judgment of Paris' blind tasting, California wines beat top Bordeaux and Burgundy. That's the same year this app's data starts."),
+    "ZAF": ("South Africa", "Napoleon, exiled on St Helena, had Constantia sweet wine shipped from the Cape, reportedly 30 bottles a month until his death in 1821."),
+}
+
+
+def wine_card(c1: str, c2: str, cur1: str, gap: float) -> str | None:
+    """HTML for the wine pairing card, or None when neither country has a wine fact."""
+    f1, f2 = WINE_FACTS.get(c1), WINE_FACTS.get(c2)
+    if not f1 and not f2:
+        return None
+    items = "".join(
+        f'<div class="wine-item"><p class="wine-country">{f[0][0].upper() + f[0][1:]}</p><p>{f[1]}</p></div>'
+        for f in (f1, f2) if f
+    )
+    # Tie it back to the economics (only when both are wine countries): whose wine is on sale for whom
+    twist = ""
+    if f1 and f2 and abs(gap) >= 0.5:
+        word = "overvalued" if gap > 0 else "undervalued"
+        cheap, buyer = (f2, f1) if gap > 0 else (f1, f2)
+        twist = (f'<p class="wine-twist">With {cur1} {abs(gap):,.1f}% {word}, wine from {cheap[0]} '
+                 f'is cheaper than usual in real terms for buyers in {buyer[0]}.</p>')
+    return (f'<div class="wine"><p class="wine-title">🍷 Wine pairing</p>'
+            f'<div class="wine-grid">{items}</div>{twist}</div>')
 
 
 # --------------------------------------------------------------------------
@@ -843,6 +920,10 @@ def main() -> None:
     if notes:
         note_col.caption(f"⚠️ {len(notes)} data note{'s' if len(notes) > 1 else ''} for this sample. "
                          "See **Data notes** below.")
+
+    card = wine_card(c1, c2, cur1, gap)
+    if card:
+        st.markdown(card, unsafe_allow_html=True)
 
     # ---- Bottom: method, interpretation, notes, data ----------------------
     st.divider()
