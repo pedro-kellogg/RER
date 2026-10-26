@@ -352,10 +352,10 @@ def fetch_series(dataflow: str, key: str) -> pd.Series:
                 last_error = f"Could not parse IMF response: {exc}"
                 break  # try the other format
 
-            series = pd.Series(
-                {_parse_period(p): pd.to_numeric(v, errors="coerce") for p, v in raw.items()},
-                dtype=float,
-            )
+            # The IMF can answer 200 with an empty dataset (e.g. no "CPI" index for the Euro area,
+            # only HICP), so build a date index explicitly even when there are no observations.
+            points = {_parse_period(p): pd.to_numeric(v, errors="coerce") for p, v in raw.items()}
+            series = pd.Series(list(points.values()), index=pd.DatetimeIndex(list(points.keys())), dtype=float)
             series = series[series.index.notna()].sort_index()
             series = series[~series.index.duplicated(keep="last")]
             return series[series.index >= START_MONTH]
@@ -477,7 +477,28 @@ div[data-baseweb="popover"] li:hover {{ background-color: {tm['hover']} !importa
 .stApp [data-testid^="stBaseButton"] {{ background-color: {tm['field']} !important; color: {tm['text']} !important;
     border-color: {tm['border']} !important; }}
 .stApp [data-testid^="stBaseButton"] * {{ color: inherit !important; }}
-.stApp [data-testid^="stBaseButton"]:disabled {{ opacity: 0.45; }}
+.stApp [data-testid^="stBaseButton"]:disabled {{ opacity: 0.35; }}
+.stApp [data-testid="stBaseButton-primary"], [data-testid="stPopoverBody"] [data-testid="stBaseButton-primary"] {{
+    background-color: {accent} !important; border-color: {accent} !important; color: {tm['bg']} !important;
+    font-weight: 600; }}
+[data-testid="stPopoverBody"] {{ background-color: {tm['field']} !important; border-color: {tm['border']} !important; }}
+[data-testid="stPopoverBody"] [data-testid="stBaseButton-secondary"] {{ background-color: {tm['field']} !important;
+    color: {tm['text']} !important; border-color: {tm['border']} !important; }}
+[data-testid="stPopoverBody"] p {{ color: {tm['text']} !important; }}
+[data-testid="stPopoverBody"] [data-testid="stBaseButton-primary"] p {{ color: {tm['bg']} !important; }}
+.stApp [data-testid="stPopoverButton"], .stApp [data-testid="stPopoverButton"]:focus,
+.stApp [data-testid="stPopoverButton"]:active {{ background-color: {tm['field']} !important; color: {tm['text']} !important;
+    border-color: {tm['border']} !important; }}
+.stApp [data-testid="stPopoverButton"]:hover {{ border-color: {accent} !important; }}
+.stApp [data-testid="stPopoverButton"] * {{ color: {tm['text']} !important; }}
+[data-testid="stPopoverBody"] {{ min-width: 280px !important; }}
+[data-testid="stPopoverBody"] button {{ padding: 0.25rem 0.4rem !important; min-height: 2.1rem; }}
+.stApp [data-testid="stPopoverButton"]:focus, .stApp [data-testid="stPopoverButton"]:focus-visible {{ box-shadow: none !important; }}
+[data-testid="stPopoverBody"] button p {{ font-size: 0.9rem; white-space: nowrap; }}
+.stApp [data-testid="stCode"] pre, .stApp [data-testid="stCode"] code {{ background-color: {tm['side']} !important;
+    color: {tm['text']} !important; }}
+.stApp .picker-label {{ font-size: 0.875rem; margin: 0 0 0.25rem 0; color: {tm['text']} !important; }}
+.picker-year {{ text-align: center; font-weight: 700; font-size: 1.05rem; margin: 0 !important; }}
 .stApp [data-testid="stButtonGroup"] button {{ background-color: {tm['field']} !important; color: {tm['text']} !important;
     border-color: {tm['border']} !important; }}
 .stApp [data-testid="stButtonGroup"] button * {{ color: inherit !important; }}
@@ -529,7 +550,7 @@ def make_chart(window: pd.DataFrame, view: str, cur1: str, cur2: str, colors: tu
 
     lines = []
     if view in ("Real", "Both"):
-        lines.append(("Real_Index", "Real Index (sample avg = 100)", real_color, 1, False))
+        lines.append(("Real_Index", "Real Index", real_color, 1, False))
     if view in ("Nominal", "Both"):
         lines.append(("S", f"Nominal: {cur2} per {cur1}", nom_color, s_dec, both))
 
@@ -559,15 +580,15 @@ def make_chart(window: pd.DataFrame, view: str, cur1: str, cur2: str, colors: tu
     fig.update_xaxes(range=[window.index.min(), window.index.max() + pad], hoverformat="%b %Y",
                      gridcolor=tm["grid"], title_text=None)
 
+    s_ticks = ",.0f" if s_dec == 1 else f",.{s_dec}f"  # whole numbers unless S is small
     if both:
-        fig.update_yaxes(title_text="Real Index (sample avg = 100)", tickformat=",.1f",
-                         secondary_y=False, gridcolor=tm["grid"])
-        fig.update_yaxes(title_text=f"{cur2} per {cur1}", tickformat=f",.{s_dec}f", tickmode="auto",
+        fig.update_yaxes(title_text="Real Index", tickformat=",.0f", secondary_y=False, gridcolor=tm["grid"])
+        fig.update_yaxes(title_text=f"{cur2} per {cur1}", tickformat=s_ticks, tickmode="auto",
                          nticks=8, secondary_y=True, showgrid=False)
     elif view == "Real":
-        fig.update_yaxes(title_text="Real Index (sample avg = 100)", tickformat=",.1f", gridcolor=tm["grid"])
+        fig.update_yaxes(title_text="Real Index", tickformat=",.0f", gridcolor=tm["grid"])
     else:
-        fig.update_yaxes(title_text=f"{cur2} per {cur1}", tickformat=f",.{s_dec}f", gridcolor=tm["grid"])
+        fig.update_yaxes(title_text=f"{cur2} per {cur1}", tickformat=s_ticks, gridcolor=tm["grid"])
 
     fig.update_layout(
         template=tm["plotly"], paper_bgcolor=tm["bg"], plot_bgcolor=tm["bg"],
@@ -590,17 +611,61 @@ def label(iso: str) -> str:
     return f"{name} ({iso}, {cur})"
 
 
-def clamp_sample(months: list) -> tuple:
+def clamp_sample(months: list, pair: tuple) -> tuple:
     """Return the stored sample, clamped to the months available for the current country pair."""
     lo, hi = months[0], months[-1]
     s = min(max(st.session_state.get("start", lo), lo), hi)
     e = min(max(st.session_state.get("end", hi), lo), hi)
-    if s > e:
-        s, e = lo, hi
+    new_pair = st.session_state.get("pair") not in (None, pair)
+    if s > e or (new_pair and st.session_state.get("was_full", True)):
+        s, e = lo, hi  # was viewing the full history: stay on the full history of the new pair
     if (s, e) != (st.session_state.get("start"), st.session_state.get("end")):
         st.session_state.start, st.session_state.end = s, e
         st.session_state.date_v = st.session_state.get("date_v", 0) + 1  # rebuild widgets
     return s, e
+
+
+MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def _shift_year(which: str, step: int) -> None:
+    st.session_state[f"{which}_year"] += step
+
+
+def _pick_month(which: str, month: pd.Timestamp) -> None:
+    """Set the start or end month from a picker; keep start <= end."""
+    other = "end" if which == "start" else "start"
+    st.session_state[which] = month
+    s, e = st.session_state.start, st.session_state.end
+    if s > e:
+        st.session_state[other] = month
+    st.session_state.date_v = st.session_state.get("date_v", 0) + 1  # rebuild the slider
+
+
+def month_picker(which: str, title: str, current: pd.Timestamp, lo: pd.Timestamp, hi: pd.Timestamp) -> None:
+    """A small calendar: year arrows on top, a 3 x 4 grid of months below."""
+    ykey = f"{which}_year"
+    if not lo.year <= st.session_state.get(ykey, -1) <= hi.year:
+        st.session_state[ykey] = current.year
+    year = st.session_state[ykey]
+    st.markdown(f'<p class="picker-label">{title}</p>', unsafe_allow_html=True)
+    with st.popover(f"{current:%b %Y}", width="stretch"):
+        prev_c, year_c, next_c = st.columns([1, 2, 1], vertical_alignment="center")
+        prev_c.button("‹", key=f"{which}_prev", disabled=year <= lo.year, on_click=_shift_year,
+                      args=(which, -1), width="stretch")
+        year_c.markdown(f'<p class="picker-year">{year}</p>', unsafe_allow_html=True)
+        next_c.button("›", key=f"{which}_next", disabled=year >= hi.year, on_click=_shift_year,
+                      args=(which, 1), width="stretch")
+        for row in range(4):
+            cells = st.columns(3)
+            for i in range(3):
+                m = row * 3 + i + 1
+                month = pd.Timestamp(year=year, month=m, day=1)
+                cells[i].button(
+                    MONTH_ABBR[m - 1], key=f"{which}_m{m}", width="stretch",
+                    type="primary" if month == current else "secondary",
+                    disabled=not lo <= month <= hi, on_click=_pick_month, args=(which, month),
+                )
 
 
 APP_NAME = "Parity Lens"
@@ -669,30 +734,25 @@ def main() -> None:
             st.caption(" · ".join(f"{k}: {panel[k].notna().sum()} months" for k in keys))
         st.stop()
 
-    # ---- Sample period: month boxes and slider kept in sync ---------------
+    # ---- Sample period: month-grid pickers and slider kept in sync -------
     months = list(pd.date_range(valid.index.min(), valid.index.max(), freq="MS"))
-    start, end = clamp_sample(months)
+    start, end = clamp_sample(months, (c1, c2))
+    st.session_state.pair = (c1, c2)
+    st.session_state.was_full = (start, end) == (months[0], months[-1])
     v = st.session_state.get("date_v", 0)
-    month_fmt = lambda d: d.strftime("%b %Y")  # noqa: E731
     with sb_period:
         st.subheader("Sample period")
         col_a, col_b = st.columns(2)
-        box_start = col_a.selectbox("Start", months, index=months.index(start), key=f"start_box_{v}",
-                                    format_func=month_fmt, help="Click and type to search, e.g. 'Mar 2005'")
-        box_end = col_b.selectbox("End", months, index=months.index(end), key=f"end_box_{v}",
-                                  format_func=month_fmt)
-        slider = st.select_slider("Drag to adjust", options=months, value=(start, end),
-                                  key=f"range_slider_{v}", format_func=month_fmt, label_visibility="collapsed")
+        with col_a:
+            month_picker("start", "Start", start, months[0], months[-1])
+        with col_b:
+            month_picker("end", "End", end, months[0], months[-1])
+        slider = st.select_slider("Drag to adjust", options=months, value=(start, end), key=f"range_slider_{v}",
+                                  format_func=lambda d: d.strftime("%b %Y"), label_visibility="collapsed")
         if st.button("Reset to full history", width="stretch", disabled=(start, end) == (months[0], months[-1])):
             slider = (months[0], months[-1])
-            box_start, box_end = start, end
-    new = None
-    if (box_start, box_end) != (start, end):
-        new = tuple(sorted((box_start, box_end)))
-    elif tuple(slider) != (start, end):
-        new = tuple(slider)
-    if new is not None:
-        st.session_state.start, st.session_state.end = new
+    if tuple(slider) != (start, end):
+        st.session_state.start, st.session_state.end = tuple(slider)
         st.session_state.date_v = v + 1
         st.rerun()
 
@@ -759,6 +819,8 @@ def main() -> None:
         "Both": f"Value of {cur1} in {cur2}: nominal and real",
     }
     subtitle = f"{name1} vs {name2} · {period} · monthly"
+    if view != "Nominal":
+        subtitle += " · Real Index: sample average = 100"
     st.plotly_chart(make_chart(window, view, cur1, cur2, colors, tm, titles[view], subtitle, s_dec),
                     width="stretch", theme=None)
 
